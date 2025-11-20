@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mintly WalletConnect v3</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: linear-gradient(180deg, #f8faff 0%, #e6ebf2 100%);
+    }
+    button {
+      font-size: 16px;
+      padding: 12px 22px;
+      border: none;
+      border-radius: 10px;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: 0.2s;
+      margin: 8px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .hidden {
+      display: none !important;
+    }
+    .status-row {
+      margin-top: 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #cbd5f5;
+      border-top-color: #007bff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    pre {
+      background: #f3f3f3;
+      border-radius: 6px;
+      padding: 10px;
+      width: 90%;
+      max-width: 650px;
+      font-size: 12px;
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Mintly WalletConnect</h1>
+
+  <button id="connectBtn">🔗 Подключить кошелёк</button>
+  <button id="sendBtn" class="hidden">🚀 Отправить транзакцию</button>
+  <button id="explorerBtn" class="hidden">🔍 Открыть в сканере</button>
+
+  <div class="status-row">
+    <div id="spinner" class="spinner"></div>
+    <div id="status">Ожидание подключения...</div>
+  </div>
+
+  <pre id="log"></pre>
+
+<script type="module">
+  window.process = { env: { NODE_ENV: "production" } };
+
+  import SignClient from "./vendor/walletconnect/wc-sdk.js";
+  import { WalletConnectModal } from "./vendor/walletconnect/walletconnect-modal.js";
+
+  const { ethers } = window;
+
+  const REQUIRED_CHAIN = "eip155:97";
+  const REQUIRED_CHAIN_ID = 97;
+
+  const projectId = "304ab24704c29b3d89ab4001b3eab9aa";
+  const relayUrl = "wss://relay.walletconnect.com";
+
+  const modal = new WalletConnectModal({ projectId, themeMode: "light" });
+
+  let client = null;
+  let session = null;
+  let lastTxHash = null;
+
+  const logEl = document.getElementById("log");
+  const statusEl = document.getElementById("status");
+  const spinnerEl = document.getElementById("spinner");
+
+  const connectBtn = document.getElementById("connectBtn");
+  const sendBtn = document.getElementById("sendBtn");
+  const explorerBtn = document.getElementById("explorerBtn");
+
+  const log = (msg) => {
+    console.log(msg);
+    logEl.textContent += msg + "\n";
+  };
+
+  const setStatus = (text, { loading = false } = {}) => {
+    statusEl.textContent = text;
+    spinnerEl.style.display = loading ? "inline-block" : "none";
+  };
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const getAccountInfo = () => {
+    if (!session) return null;
+    const entry = session.namespaces.eip155.accounts[0];
+    const [_, chainIdStr, address] = entry.split(":");
+    return { chainIdStr, address };
+  };
+
+  // === CONNECT ===
+  connectBtn.onclick = async () => {
+    try {
+      setStatus("🟡 Инициализация WalletConnect...", { loading: true });
+      log("Инициализация SignClient...");
+
+      client = await SignClient.init({ projectId, relayUrl });
+      log("SignClient готов.");
+
+      const { uri, approval } = await client.connect({
+        requiredNamespaces: {
+          eip155: {
+            methods: ["eth_sendTransaction", "personal_sign"],
+            events: ["accountsChanged", "chainChanged"],
+            chains: [REQUIRED_CHAIN],
+          },
+        },
+      });
+
+      if (uri) {
+        log("Открываю QR...");
+        modal.openModal({ uri });
+      }
+
+      session = await approval();
+      modal.closeModal();
+      log("Сессия установлена.");
+
+      const info = getAccountInfo();
+      const short = info.address.slice(0, 6) + "..." + info.address.slice(-4);
+
+      setStatus(`✅ Подключено: ${short}`);
+      log("Адрес: " + info.address);
+
+      connectBtn.classList.add("hidden");
+      sendBtn.classList.remove("hidden");
+    } catch (err) {
+      log("Ошибка подключения: " + err.message);
+      setStatus("⚠️ Ошибка подключения");
+    }
+  };
+
+  // === SEND TX ===
+  sendBtn.onclick = async () => {
+    try {
+      if (!session) throw new Error("Сначала подключи кошелёк");
+
+      const info = getAccountInfo();
+
+      if (info.chainIdStr !== String(REQUIRED_CHAIN_ID)) {
+        if (info.chainIdStr === "1") {
+          log("⚠️ WalletConnect передал chainId=1. Продолжаем...");
+        } else {
+          throw new Error(`Кошелёк сообщает chainId=${info.chainIdStr}`);
+        }
+      }
+
+      const u = new URL(window.location.href);
+      const to = u.searchParams.get("to");
+      let data = decodeURIComponent(u.searchParams.get("data") || "");
+      const valueStr = u.searchParams.get("value") || "0";
+
+      const valueHex = "0x" + BigInt(valueStr).toString(16);
+
+      const tx = {
+        from: info.address,
+        to,
+        data,
+        value: valueHex,
+        gasLimit: "0x2dc6c0",
+      };
+
+      setStatus("⏳ Отправка транзакции...", { loading: true });
+
+      await sleep(600);
+
+      const txHash = await client.request({
+        topic: session.topic,
+        chainId: REQUIRED_CHAIN,
+        request: {
+          method: "eth_sendTransaction",
+          params: [tx],
+        },
+      });
+
+      lastTxHash = txHash;
+      log("TX hash: " + txHash);
+
+      sendBtn.classList.add("hidden");
+      explorerBtn.classList.remove("hidden");
+
+      setStatus("🟢 Транзакция отправлена", { loading: false });
+    } catch (err) {
+      log("Ошибка TX: " + err.message);
+      setStatus("⚠️ " + err.message);
+    }
+  };
+
+  // === OPEN EXPLORER ===
+  explorerBtn.onclick = () => {
+    if (!lastTxHash) return;
+    window.open(`https://testnet.bscscan.com/tx/${lastTxHash}`, "_blank");
+  };
+</script>
+</body>
+</html>
