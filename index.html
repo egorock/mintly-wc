@@ -2,10 +2,10 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Mintly</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mintly WalletConnect</title>
 
-  <!-- Telegram WebApp API -->
+  <!-- Telegram WebApp -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <!-- ethers.js -->
@@ -13,58 +13,61 @@
 
   <style>
     body {
+      font-family: system-ui, sans-serif;
       margin: 0;
       padding: 0;
-      background: #f3f6fc;
-      font-family: system-ui, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding-top: 20px; /* меньше отступ сверху */
+      background: #f6f7fb;
+    }
+
+    .wrapper {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 20px 12px 40px; /* компактный верх */
     }
 
     h1 {
-      margin: 0 0 10px 0;
-      font-size: 20px;
+      margin: 0;
+      margin-bottom: 14px;
+      font-size: 24px; /* компактный заголовок */
+      text-align: center;
       font-weight: 600;
-      color: #1a1f36;
+      color: #111;
     }
 
     button {
-      width: 85%;
-      max-width: 320px;
+      width: 100%;
       font-size: 16px;
-      padding: 14px;
+      padding: 12px;
       border: none;
       border-radius: 10px;
       background: #007bff;
       color: white;
       cursor: pointer;
-      margin-top: 12px;
       transition: 0.2s;
+      margin-top: 8px;
     }
 
     button:hover {
-      background: #005fcc;
+      background: #0056b3;
     }
 
     .hidden {
       display: none !important;
     }
 
-    .status {
+    .status-row {
       margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-size: 14px;
-      color: #444;
-      text-align: center;
-      padding: 0 20px;
+      color: #333;
     }
 
     .spinner {
-      margin: 12px auto 0;
-      width: 22px;
-      height: 22px;
-      border: 3px solid #cbd5f5;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #d0d4e4;
       border-top-color: #007bff;
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
@@ -72,10 +75,23 @@
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    pre {
+      background: #f3f3f3;
+      border-radius: 6px;
+      padding: 10px;
+      width: 100%;
+      font-size: 12px;
+      overflow-x: auto;
+      margin-top: 12px;
+      box-sizing: border-box;
+    }
+
   </style>
 </head>
 
 <body>
+<div class="wrapper">
 
   <h1>Mintly</h1>
 
@@ -83,8 +99,14 @@
   <button id="sendBtn" class="hidden">🚀 Отправить транзакцию</button>
   <button id="explorerBtn" class="hidden">🔍 Открыть в сканере</button>
 
-  <div id="spinner" class="spinner"></div>
-  <div id="status" class="status">Ожидание подключения…</div>
+  <div class="status-row">
+    <div id="spinner" class="spinner"></div>
+    <div id="status">Ожидание подключения…</div>
+  </div>
+
+  <pre id="log"></pre>
+
+</div>
 
 <script type="module">
   window.process = { env: { NODE_ENV: "production" } };
@@ -94,9 +116,12 @@
 
   const { ethers } = window;
 
-  // Telegram WebApp API
-  const tg = window.Telegram?.WebApp ?? null;
-  if (tg) tg.ready();
+  // Telegram WebApp
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand(); // авто-увеличение высоты
+  }
 
   const REQUIRED_CHAIN = "eip155:97";
   const REQUIRED_CHAIN_ID = 97;
@@ -110,91 +135,114 @@
   let session = null;
   let lastTxHash = null;
 
+  const logEl = document.getElementById("log");
+  const statusEl = document.getElementById("status");
+  const spinnerEl = document.getElementById("spinner");
   const connectBtn = document.getElementById("connectBtn");
   const sendBtn = document.getElementById("sendBtn");
   const explorerBtn = document.getElementById("explorerBtn");
-  const statusEl = document.getElementById("status");
-  const spinnerEl = document.getElementById("spinner");
 
-  // Helpers
-  const setStatus = (text, loading = false) => {
+  const log = (msg) => {
+    console.log(msg);
+    logEl.textContent += msg + "\n";
+  };
+
+  const setStatus = (text, { loading = false } = {}) => {
     statusEl.textContent = text;
-    spinnerEl.style.display = loading ? "block" : "none";
+    spinnerEl.style.display = loading ? "inline-block" : "none";
   };
-  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
-  const getAccount = () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const getAccountInfo = () => {
     if (!session) return null;
-    const acc = session.namespaces.eip155.accounts[0];
-    const [_, cid, address] = acc.split(":");
-    return { chainId: cid, address };
+    const entry = session.namespaces.eip155.accounts[0];
+    const [_, chainIdStr, address] = entry.split(":");
+    return { chainIdStr, address };
   };
 
-  // CONNECT WALLET
+  // CONNECT
   connectBtn.onclick = async () => {
     try {
-      setStatus("Инициализация…", true);
+      setStatus("🟡 Инициализация WalletConnect…", { loading: true });
+      log("Инициализация SignClient…");
 
       client = await SignClient.init({ projectId, relayUrl });
+      log("SignClient готов.");
 
       const { uri, approval } = await client.connect({
         requiredNamespaces: {
           eip155: {
-            chains: [REQUIRED_CHAIN],
             methods: ["eth_sendTransaction", "personal_sign"],
-            events: ["chainChanged", "accountsChanged"]
-          }
-        }
+            events: ["accountsChanged", "chainChanged"],
+            chains: [REQUIRED_CHAIN],
+          },
+        },
       });
 
-      if (uri) modal.openModal({ uri });
+      if (uri) {
+        modal.openModal({ uri });
+      }
 
       session = await approval();
       modal.closeModal();
+      log("Сессия установлена.");
 
-      const acc = getAccount();
-      const short = acc.address.slice(0, 6) + "..." + acc.address.slice(-4);
+      const info = getAccountInfo();
+      setStatus(`✅ Подключено: ${info.address.slice(0, 6)}…${info.address.slice(-4)}`);
 
-      setStatus(`Подключено: ${short}`);
       connectBtn.classList.add("hidden");
       sendBtn.classList.remove("hidden");
 
-    } catch (e) {
-      setStatus("Ошибка подключения", false);
+    } catch (err) {
+      log("Ошибка подключения: " + err.message);
+      setStatus("⚠️ Ошибка подключения");
     }
   };
 
   // SEND TX
   sendBtn.onclick = async () => {
     try {
-      const acc = getAccount();
+      if (!session) throw new Error("Сначала подключите кошелёк");
 
-      const params = new URL(window.location.href).searchParams;
-      const to = params.get("to");
-      let data = decodeURIComponent(params.get("data") || "");
-      const valueStr = params.get("value") || "0";
+      const info = getAccountInfo();
 
-      const valueHex = "0x" + BigInt(valueStr).toString(16);
+      if (info.chainIdStr !== String(REQUIRED_CHAIN_ID)) {
+        if (info.chainIdStr !== "1") {
+          throw new Error(`Неверная сеть: ${info.chainIdStr}`);
+        }
+      }
+
+      const u = new URL(window.location.href);
+      const to = u.searchParams.get("to");
+      let data = decodeURIComponent(u.searchParams.get("data") || "");
+      const valueStr = u.searchParams.get("value") || "0";
 
       const tx = {
-        from: acc.address,
+        from: info.address,
         to,
         data,
-        value: valueHex,
+        value: "0x" + BigInt(valueStr).toString(16),
         gasLimit: "0x2dc6c0",
       };
 
-      setStatus("Отправка транзакции…", true);
+      setStatus("⏳ Отправка транзакции…", { loading: true });
+
       await sleep(600);
 
       const txHash = await client.request({
         topic: session.topic,
         chainId: REQUIRED_CHAIN,
-        request: { method: "eth_sendTransaction", params: [tx] }
+        request: {
+          method: "eth_sendTransaction",
+          params: [tx],
+        },
       });
 
       lastTxHash = txHash;
-      setStatus("Транзакция отправлена!");
+      log("TX hash: " + txHash);
+      setStatus("🟢 Транзакция отправлена", { loading: false });
+
       sendBtn.classList.add("hidden");
       explorerBtn.classList.remove("hidden");
 
@@ -202,26 +250,27 @@
         tg.sendData(JSON.stringify({
           type: "tx_result",
           status: "success",
-          txHash: txHash
+          txHash
         }));
         tg.close();
       }
 
-    } catch (e) {
-      setStatus("Ошибка транзакции");
+    } catch (err) {
+      log("Ошибка TX: " + err.message);
+      setStatus("⚠️ " + err.message);
 
       if (tg) {
         tg.sendData(JSON.stringify({
           type: "tx_result",
           status: "error",
-          error: e.message
+          error: err.message
         }));
         tg.close();
       }
     }
   };
 
-  // OPEN IN EXPLORER
+  // OPEN EXPLORER
   explorerBtn.onclick = () => {
     if (lastTxHash) {
       window.open(`https://testnet.bscscan.com/tx/${lastTxHash}`, "_blank");
