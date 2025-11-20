@@ -207,7 +207,7 @@
         <h1>Mintly WalletConnect</h1>
         <p class="subtitle">Подключите кошелёк и подтвердите транзакцию</p>
       </div>
-      <div class="pill">Ethereum</div>
+      <div class="pill">Ethereum Sepolia</div>
     </div>
 
     <div class="buttons-row">
@@ -298,7 +298,7 @@
 
     const getAccountInfo = () => {
       if (!session) return null;
-      const entry = session.namespaces.eip155.accounts[0]; // "eip155:97:0x..."
+      const entry = session.namespaces.eip155.accounts[0]; // "eip155:11155111:0x..."
       const [_, chainIdStr, address] = entry.split(":");
       return { chainIdStr, address };
     };
@@ -367,7 +367,7 @@
             // Известный баг — иногда приходит 1, но транза всё равно уходит в нужную сеть
             console.warn("WalletConnect reported chainId=1, продолжаем…");
           } else {
-            throw new Error(`Кошелёк сообщает chainId=${info.chainIdStr}. Ожидается 97 (BSC Testnet).`);
+            throw new Error(`Кошелёк сообщает chainId=${info.chainIdStr}. Ожидается 11155111 (Ethereum Sepolia).`);
           }
         }
 
@@ -453,7 +453,7 @@
     // === 3) Открыть в сканере ===
     explorerBtn.onclick = () => {
       if (!lastTxHash) return;
-      window.open(`https://testnet.bscscan.com/tx/${lastTxHash}`, "_blank");
+      window.open(`https://sepolia.etherscan.io/tx/${lastTxHash}`, "_blank");
     };
   </script>
 </body>
