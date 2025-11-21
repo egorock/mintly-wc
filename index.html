@@ -8,75 +8,214 @@
   <!-- Telegram WebApp -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <!-- ethers -->
+  <!-- ethers (если понадобится позже, сейчас почти не используем) -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 
-  <!-- WalletConnect SDK v2 (recommended stable build) -->
-  <script src="https://unpkg.com/@walletconnect/modal@2.7.2/dist/index.umd.js"></script>
-  <script src="https://unpkg.com/@walletconnect/sign-client@2.11.2/dist/index.umd.js"></script>
-
   <style>
+    :root {
+      --primary: #2477f4;
+      --primary-dark: #145cd1;
+      --bg: #f4f5f7;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --card-bg: #ffffff;
+      --border: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       padding: 0;
-      background: #f4f5f7;
+      background: var(--bg);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text-main);
     }
+
     #app {
       display: flex;
       flex-direction: column;
       height: 100vh;
-      padding: 14px;
-      box-sizing: border-box;
+      padding: 12px 12px 18px;
+      gap: 10px;
     }
-    h1 {
-      font-size: 20px;
-      text-align: center;
-      margin-bottom: 16px;
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 14px 12px 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
     }
-    button {
-      width: 100%;
-      padding: 14px;
-      margin-bottom: 12px;
-      border: none;
-      border-radius: 10px;
-      color: #fff;
-      background: #2477f4;
-      font-size: 16px;
-    }
-    #status {
+
+    .header {
       text-align: center;
       margin-bottom: 10px;
-      color: #333;
     }
-    pre {
-      flex: 1;
-      background: #fff;
-      border-radius: 10px;
-      padding: 10px;
-      border: 1px solid #ddd;
+
+    .title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+
+    .subtitle {
       font-size: 12px;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 13px;
+      margin-bottom: 8px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      color: #ffffff;
+      background: var(--primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:active {
+      background: var(--primary-dark);
+      transform: translateY(1px);
+    }
+
+    .btn.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .btn.secondary:active {
+      background: #d1d5db;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 2px 4px;
+      font-size: 13px;
+      color: var(--text-muted);
+      justify-content: center;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #d1d5db;
+    }
+
+    .dot.ok {
+      background: #22c55e;
+    }
+
+    .dot.warn {
+      background: #f97316;
+    }
+
+    .dot.err {
+      background: #ef4444;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid #dbeafe;
+      border-top-color: var(--primary);
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .status-text {
+      min-height: 16px;
+    }
+
+    .log-card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #log {
+      flex: 1;
+      margin-top: 4px;
+      padding: 8px;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background: #f9fafb;
+      border-radius: 10px;
+      border: 1px dashed #e5e7eb;
       overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #374151;
+    }
+
+    /* WalletConnect modal must be above Telegram WebApp UI */
+    .wcm-modal, .walletconnect-modal__base {
+      z-index: 999999 !important;
     }
   </style>
 </head>
 
 <body>
 <div id="app">
+  <div class="card">
+    <div class="header">
+      <p class="title">Mintly WalletConnect</p>
+      <p class="subtitle">Connect your wallet and approve the transaction</p>
+    </div>
 
-  <h1>Mintly WalletConnect</h1>
+    <button id="connectBtn" class="btn">
+      🔗 <span>Connect wallet</span>
+    </button>
 
-  <button id="connectBtn">🔗 Connect wallet</button>
-  <button id="sendBtn" class="hidden">🚀 Send transaction</button>
+    <button id="sendBtn" class="btn hidden">
+      🚀 <span>Send transaction</span>
+    </button>
 
-  <div id="status">Waiting for connection...</div>
-  <pre id="log"></pre>
+    <div class="status-row">
+      <div id="statusDot" class="dot"></div>
+      <div id="statusText" class="status-text">Waiting for connection…</div>
+      <div id="spinner" class="spinner hidden"></div>
+    </div>
+  </div>
 
+  <div class="card log-card">
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 2px;">
+      Debug log
+    </div>
+    <div id="log"></div>
+  </div>
 </div>
 
-<script>
-  const REQUIRED_CHAIN = "eip155:11155111";    // Sepolia
-  const CHAIN_ID_NUM = 11155111;
+<script type="module">
+  // Make process.env NODE_ENV exist for some libs
+  window.process = { env: { NODE_ENV: "production" } };
+
+  import SignClient from "./vendor/walletconnect/wc-sdk.js";
+  import { WalletConnectModal } from "./vendor/walletconnect/walletconnect-modal.js";
+
+  const REQUIRED_CHAIN = "eip155:11155111"; // Ethereum Sepolia
   const PROJECT_ID = "304ab24704c29b3d89ab4001b3eab9aa";
 
   const tg = window.Telegram?.WebApp;
@@ -86,77 +225,122 @@
   let session = null;
   let lastTxHash = null;
 
-  const logEl = document.getElementById("log");
-  const statusEl = document.getElementById("status");
   const connectBtn = document.getElementById("connectBtn");
   const sendBtn = document.getElementById("sendBtn");
+  const logEl = document.getElementById("log");
+  const statusDot = document.getElementById("statusDot");
+  const statusText = document.getElementById("statusText");
+  const spinner = document.getElementById("spinner");
 
-  const log = (msg) => (logEl.textContent += msg + "\n");
-  const status = (msg) => (statusEl.textContent = msg);
+  const modal = new WalletConnectModal({
+    projectId: PROJECT_ID,
+    themeMode: "light"
+  });
 
-  const getAddress = () => {
-    const acc = session.namespaces.eip155.accounts[0];
-    return acc.split(":")[2];
+  const log = (msg) => {
+    console.log(msg);
+    logEl.textContent += msg + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
   };
 
+  const setStatus = (text, type = "idle", loading = false) => {
+    statusText.textContent = text;
+
+    statusDot.classList.remove("ok", "warn", "err");
+    if (type === "ok") statusDot.classList.add("ok");
+    else if (type === "warn") statusDot.classList.add("warn");
+    else if (type === "err") statusDot.classList.add("err");
+
+    spinner.classList.toggle("hidden", !loading);
+  };
+
+  const getAccountAddress = () => {
+    if (!session) return null;
+    const entry = session.namespaces.eip155.accounts[0]; // eip155:11155111:0x...
+    const parts = entry.split(":");
+    return parts[2];
+  };
+
+  // ================= CONNECT =================
   connectBtn.onclick = async () => {
     try {
-      status("Initializing WalletConnect...");
-      log("Init SignClient...");
+      setStatus("Initializing WalletConnect…", "warn", true);
+      log("Init SignClient…");
 
-      client = await SignClient.SignClient.init({
+      client = await SignClient.init({
         projectId: PROJECT_ID,
         relayUrl: "wss://relay.walletconnect.com"
       });
+
+      log("SignClient initialized");
 
       const { uri, approval } = await client.connect({
         requiredNamespaces: {
           eip155: {
             chains: [REQUIRED_CHAIN],
-            methods: ["eth_sendTransaction"],
-            events: []
+            methods: ["eth_sendTransaction", "personal_sign"],
+            events: ["accountsChanged", "chainChanged"]
           }
         }
       });
 
       if (uri) {
-        WalletConnectModal.openModal({ uri, projectId: PROJECT_ID });
+        log("Opening WalletConnect modal");
+        modal.openModal({ uri });
       }
 
       session = await approval();
-      WalletConnectModal.closeModal();
+      modal.closeModal();
+      log("Session approved");
 
-      const address = getAddress();
-      const short = address.slice(0, 6) + "..." + address.slice(-4);
+      const address = getAccountAddress();
+      const short = address.slice(0, 6) + "…" + address.slice(-4);
 
-      status("Connected: " + short);
-      sendBtn.classList.remove("hidden");
+      setStatus("Connected: " + short, "ok", false);
       connectBtn.classList.add("hidden");
-
-      log("Connected: " + address);
+      sendBtn.classList.remove("hidden");
 
     } catch (err) {
-      status("Connection error");
-      log("Error: " + err.message);
+      console.error(err);
+      log("Connect error: " + (err?.message || String(err)));
+      setStatus("Connection error", "err", false);
+
+      if (tg) {
+        tg.sendData(JSON.stringify({
+          type: "tx_result",
+          status: "error",
+          error: "connect_error: " + (err?.message || String(err))
+        }));
+      }
     }
   };
 
+  // ================= SEND TX =================
   sendBtn.onclick = async () => {
     try {
+      if (!session) throw new Error("No active session");
+
+      const address = getAccountAddress();
+      if (!address) throw new Error("Account not found in session");
+
       const url = new URL(window.location.href);
       const to = url.searchParams.get("to");
-      const data = decodeURIComponent(url.searchParams.get("data") || "0x");
+      let data = url.searchParams.get("data") || "0x";
+      data = decodeURIComponent(data);
       const valueStr = url.searchParams.get("value") || "0";
 
+      const valueHex = "0x" + BigInt(valueStr).toString(16);
+
       const tx = {
-        from: getAddress(),
+        from: address,
         to,
         data,
-        value: "0x" + BigInt(valueStr).toString(16)
+        value: valueHex
+        // gasLimit — пусть кошелёк сам оценит
       };
 
-      status("Sending transaction...");
-      log("Submitting TX...");
+      setStatus("Sending transaction…", "warn", true);
+      log("Sending transaction…");
 
       const txHash = await client.request({
         topic: session.topic,
@@ -168,8 +352,8 @@
       });
 
       lastTxHash = txHash;
-      status("Transaction sent!");
       log("TX hash: " + txHash);
+      setStatus("Transaction sent!", "ok", false);
 
       if (tg) {
         tg.sendData(JSON.stringify({
@@ -177,22 +361,24 @@
           status: "success",
           txHash
         }));
+        tg.close();
       }
 
     } catch (err) {
-      status("TX error");
-      log("TX error: " + err.message);
+      console.error(err);
+      log("TX error: " + (err?.message || String(err)));
+      setStatus("Transaction error", "err", false);
 
       if (tg) {
         tg.sendData(JSON.stringify({
           type: "tx_result",
           status: "error",
-          error: err.message
+          error: "tx_error: " + (err?.message || String(err))
         }));
+        tg.close();
       }
     }
   };
 </script>
-
 </body>
 </html>
