@@ -103,8 +103,11 @@
   const REQUIRED_CHAIN = "eip155:11155111";
   const projectId = "304ab24704c29b3d89ab4001b3eab9aa";
 
-  const SignClient = window.WalletConnect.SignClient;
-  const WalletConnectModal = window.WalletConnectModal;
+// correct UMD client bindings for WalletConnect
+console.log("🔧 UMD globals:", window.WalletConnectSignClient, window.WalletConnectModal);
+
+const SignClient = window.WalletConnectSignClient.default;
+const WalletConnectModal = window.WalletConnectModal.default;
 
   const modal = new WalletConnectModal({
     projectId,
