@@ -244,12 +244,17 @@
       successBox.style.display = "block";
 
       if (tg) {
-        tg.sendData(JSON.stringify({
-          type: "tx_result",
-          status: "success",
-          txHash
-        }));
-      }
+    tg.sendData(JSON.stringify({
+      type: "tx_result",
+      status: "success",
+      txHash
+    }));
+
+    // Даем Telegram время принять данные
+    setTimeout(() => {
+      tg.close();
+    }, 200);
+}
 
     } catch (e) {
       setStatus("Error: " + e.message);
