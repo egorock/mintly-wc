@@ -1,212 +1,266 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Mintly WalletConnect</title>
 
+  <!-- Telegram WebApp -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- ethers.js -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+
+  <!-- WalletConnect -->
+  <script type="module" src="./vendor/walletconnect/walletconnect-modal.js"></script>
+  <script type="module" src="./vendor/walletconnect/wc-sdk.js"></script>
 
   <style>
     body {
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #f7f9fc;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      overflow-x: hidden;
+      background: #f4f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    .container {
-      width: 100%;
-      max-width: 480px;
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
       padding: 12px;
+      gap: 10px;
       box-sizing: border-box;
     }
 
     h1 {
-      margin: 0;
-      margin-top: 6px;
-      font-size: 22px;
+      font-size: 20px;
       text-align: center;
-      font-weight: 600;
+      margin: 0;
+      padding-top: 6px;
     }
 
     button {
       width: 100%;
       padding: 14px;
-      font-size: 17px;
-      background: #1677ff;
-      color: white;
       border: none;
       border-radius: 10px;
-      margin-top: 12px;
+      color: #fff;
+      font-size: 16px;
+      background: #2477f4;
       cursor: pointer;
-      transition: 0.2s;
-    }
-    button:active {
-      opacity: 0.7;
     }
 
     #status {
-      margin-top: 12px;
-      font-size: 15px;
-      min-height: 24px;
+      font-size: 14px;
       text-align: center;
-      color: #444;
+      color: #333;
     }
 
-    pre {
-      background: #f1f1f1;
+    #log {
+      flex: 1;
+      overflow-y: auto;
+      background: #ffffff;
+      border-radius: 10px;
       padding: 10px;
-      border-radius: 8px;
       font-size: 12px;
-      max-height: 220px;
-      overflow-x: auto;
+      border: 1px solid #ddd;
     }
 
-    .spinner {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      border: 2px solid #ccc;
-      border-top-color: #1677ff;
-      animation: spin 0.6s linear infinite;
+    /* SUCCESS SCREEN */
+    #success-screen {
       display: none;
-      margin: 0 auto;
-      margin-top: 10px;
+      flex-direction: column;
+      height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+      text-align: center;
+      justify-content: center;
+      align-items: center;
+      gap: 18px;
     }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    #success-screen h2 {
+      font-size: 24px;
+      margin: 0;
+    }
+
+    #success-screen .hash {
+      font-size: 13px;
+      color: #666;
+      word-break: break-all;
+      padding: 6px 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      max-width: 95%;
+    }
+
+    .return-btn {
+      background: #2f8c2f !important;
+      color: #fff;
+    }
+
+    .wcm-modal {
+      z-index: 999999 !important;
+    }
   </style>
 </head>
 
 <body>
-  <div class="container">
 
+  <!-- MAIN SCREEN -->
+  <div id="app">
     <h1>Mintly WalletConnect</h1>
 
-    <button id="connectBtn">🔗 Подключить кошелёк</button>
-    <button id="sendBtn" style="display:none;">🚀 Отправить транзакцию</button>
+    <button id="connectBtn">🔗 Connect wallet</button>
+    <button id="sendBtn" class="hidden">🚀 Send transaction</button>
 
-    <div id="status">Ожидание подключения…</div>
-    <div id="spinner" class="spinner"></div>
-
+    <div id="status">Waiting for connection…</div>
     <pre id="log"></pre>
   </div>
 
-<script type="module">
-  window.process = { env: { NODE_ENV: "production" } };
+  <!-- SUCCESS SCREEN -->
+  <div id="success-screen">
+    <h2>🎉 Transaction sent!</h2>
+    <div class="hash" id="hashBox">Hash...</div>
 
+    <button onclick="window.open(`https://sepolia.etherscan.io/tx/${window.__lastTx}`, '_blank')">
+      🔍 View on Etherscan
+    </button>
+
+    <button class="return-btn" id="returnBotBtn">⬅️ Return to bot</button>
+  </div>
+
+<script type="module">
   import SignClient from "./vendor/walletconnect/wc-sdk.js";
   import { WalletConnectModal } from "./vendor/walletconnect/walletconnect-modal.js";
 
-  const tg = window.Telegram ? window.Telegram.WebApp : null;
+  const REQUIRED_CHAIN = "eip155:11155111"; // Ethereum Sepolia
+  const REQUIRED_CHAIN_ID = 11155111;
+
+  const modal = new WalletConnectModal({
+    projectId: "304ab24704c29b3d89ab4001b3eab9aa",
+    themeMode: "light"
+  });
+
+  const tg = window.Telegram?.WebApp;
   if (tg) tg.ready();
-
-  const REQUIRED_CHAIN = "eip155:11155111";  // Sepolia
-  const CHAIN_ID = 11155111;
-
-  const projectId = "304ab24704c29b3d89ab4001b3eab9aa";  
-  const relayUrl = "wss://relay.walletconnect.com";
-
-  const modal = new WalletConnectModal({ projectId, themeMode: "light" });
 
   let client = null;
   let session = null;
+  window.__lastTx = null;
 
-  const logEl = document.getElementById("log");
-  const statusEl = document.getElementById("status");
+  const app = document.getElementById("app");
+  const successScreen = document.getElementById("success-screen");
+
   const connectBtn = document.getElementById("connectBtn");
   const sendBtn = document.getElementById("sendBtn");
-  const spinner = document.getElementById("spinner");
+  const statusEl = document.getElementById("status");
+  const logEl = document.getElementById("log");
+  const hashBox = document.getElementById("hashBox");
+  const returnBotBtn = document.getElementById("returnBotBtn");
 
-  const log = msg => { logEl.textContent += msg + "\n"; console.log(msg); };
-  const setStatus = (t, load=false) => {
-    statusEl.textContent = t;
-    spinner.style.display = load ? "block" : "none";
+  const log = msg => (logEl.textContent += msg + "\n");
+  const setStatus = msg => (statusEl.textContent = msg);
+
+  const switchToSuccess = txHash => {
+    window.__lastTx = txHash;
+    hashBox.textContent = txHash;
+
+    app.style.display = "none";
+    successScreen.style.display = "flex";
   };
 
-  const getAccount = () => {
+  const getAccountInfo = () => {
     if (!session) return null;
-    const acc = session.namespaces.eip155.accounts[0];
-    const [_, chain, address] = acc.split(":");
-    return { chain, address };
+    const entry = session.namespaces.eip155.accounts[0];
+    const [_, chainIdStr, address] = entry.split(":");
+    return { chainIdStr, address };
   };
 
-  // ------------------ CONNECT ------------------
+  // ========= CONNECT =========
   connectBtn.onclick = async () => {
     try {
-      setStatus("Инициализация WalletConnect…", true);
+      setStatus("Initializing WalletConnect…");
+      log("Init SignClient…");
 
-      client = await SignClient.init({ projectId, relayUrl });
-      log("SignClient initialized");
+      client = await SignClient.init({
+        projectId: "304ab24704c29b3d89ab4001b3eab9aa",
+        relayUrl: "wss://relay.walletconnect.com"
+      });
 
       const { uri, approval } = await client.connect({
         requiredNamespaces: {
           eip155: {
-            methods: ["eth_sendTransaction", "personal_sign"],
-            events: ["accountsChanged", "chainChanged"],
-            chains: [REQUIRED_CHAIN],
-          },
+            methods: ["eth_sendTransaction"],
+            chains: [REQUIRED_CHAIN]
+          }
         }
       });
 
       if (uri) modal.openModal({ uri });
+
       session = await approval();
       modal.closeModal();
 
-      const acc = getAccount();
-      const short = acc.address.slice(0, 6) + "…" + acc.address.slice(-4);
+      const info = getAccountInfo();
+      const short = info.address.slice(0, 6) + "…" + info.address.slice(-4);
 
-      setStatus(`Подключено: ${short}`);
-      log("Connected " + acc.address);
+      setStatus(`Connected: ${short}`);
+      connectBtn.classList.add("hidden");
+      sendBtn.classList.remove("hidden");
 
-      connectBtn.style.display = "none";
-      sendBtn.style.display = "block";
+    } catch (err) {
+      console.error(err);
+      setStatus("Connection error");
 
-    } catch (e) {
-      setStatus("Ошибка подключения", false);
-      log("Ошибка: " + e.message);
+      if (tg) {
+        tg.sendData(JSON.stringify({
+          type: "tx_result",
+          status: "error",
+          error: "connect_error: " + err.message
+        }));
+      }
     }
   };
 
-  // ------------------ SEND TX ------------------
+  // ========= SEND TX =========
   sendBtn.onclick = async () => {
     try {
-      if (!session) throw new Error("Сначала подключите кошелёк");
-
-      const acc = getAccount();
-
-      if (acc.chain !== String(CHAIN_ID)) {
-        log("Chain mismatch: " + acc.chain);
-      }
+      const info = getAccountInfo();
+      if (!info) throw new Error("Wallet not connected");
 
       const u = new URL(window.location.href);
       const to = u.searchParams.get("to");
       let data = decodeURIComponent(u.searchParams.get("data") || "");
-      const value = u.searchParams.get("value") || "0";
+      const valueStr = u.searchParams.get("value") || "0";
+
+      const valueWei = BigInt(valueStr);
+      const valueHex = "0x" + valueWei.toString(16);
 
       const tx = {
-        from: acc.address,
+        from: info.address,
         to,
         data,
-        value: "0x" + BigInt(value).toString(16),
+        value: valueHex
       };
 
-      setStatus("Отправка транзакции…", true);
+      setStatus("Sending transaction…");
+      log("Sending TX…");
 
       const txHash = await client.request({
         topic: session.topic,
         chainId: REQUIRED_CHAIN,
-        request: { method: "eth_sendTransaction", params: [tx] }
+        request: {
+          method: "eth_sendTransaction",
+          params: [tx],
+        },
       });
 
       log("TX hash: " + txHash);
-      setStatus("Транзакция отправлена!");
+      setStatus("Transaction sent!");
+
+      switchToSuccess(txHash);
 
       if (tg) {
         tg.sendData(JSON.stringify({
@@ -216,18 +270,23 @@
         }));
       }
 
-    } catch (e) {
-      setStatus("Ошибка: " + e.message);
-      log("TX ERR: " + e.message);
+    } catch (err) {
+      console.error(err);
+      setStatus("Error: " + err.message);
 
       if (tg) {
         tg.sendData(JSON.stringify({
           type: "tx_result",
           status: "error",
-          error: e.message
+          error: "tx_error: " + err.message
         }));
       }
     }
+  };
+
+  // ========= RETURN TO BOT =========
+  returnBotBtn.onclick = () => {
+    if (tg) tg.close();
   };
 </script>
 
