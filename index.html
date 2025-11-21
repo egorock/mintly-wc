@@ -3,477 +3,233 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mintly WalletConnect v3</title>
+  <title>Mintly WalletConnect</title>
 
-  <!-- Telegram WebApp API -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- ethers.js (может пригодиться позже, сейчас почти не используем) -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 
   <style>
-    :root {
-      --bg1: #f8faff;
-      --bg2: #e6ebf2;
-      --primary: #007bff;
-      --primary-dark: #0056b3;
-      --text-main: #111827;
-      --text-muted: #6b7280;
-      --card-bg: #ffffffdd;
-      --border: #e5e7eb;
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f7f9fc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      overflow-x: hidden;
     }
 
-    * {
+    .container {
+      width: 100%;
+      max-width: 480px;
+      padding: 12px;
       box-sizing: border-box;
     }
 
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      margin: 0;
-      padding: 8px 10px 14px;
-      background: linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 100%);
-      color: var(--text-main);
-      min-height: 100vh;
-      display: flex;
-      justify-content: flex-start;
-    }
-
-    .wrapper {
-      width: 100%;
-      max-width: 520px;
-      margin: 0 auto;
-      padding: 10px 10px 12px;
-      background: var(--card-bg);
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    .title-box {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
     h1 {
-      font-size: 18px;
+      margin: 0;
+      margin-top: 6px;
+      font-size: 22px;
+      text-align: center;
       font-weight: 600;
-      margin: 0;
-    }
-
-    .subtitle {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin: 0;
-    }
-
-    .pill {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: #e0f2fe;
-      color: #0369a1;
-      white-space: nowrap;
-    }
-
-    .buttons-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 4px;
     }
 
     button {
-      font-size: 14px;
-      padding: 10px 14px;
+      width: 100%;
+      padding: 14px;
+      font-size: 17px;
+      background: #1677ff;
+      color: white;
       border: none;
       border-radius: 10px;
-      background: var(--primary);
-      color: white;
+      margin-top: 12px;
       cursor: pointer;
-      transition: 0.18s ease;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      flex: 1;
-      min-width: 0;
+      transition: 0.2s;
+    }
+    button:active {
+      opacity: 0.7;
     }
 
-    button:hover {
-      background: var(--primary-dark);
+    #status {
+      margin-top: 12px;
+      font-size: 15px;
+      min-height: 24px;
+      text-align: center;
+      color: #444;
     }
 
-    button:disabled {
-      opacity: 0.65;
-      cursor: default;
-    }
-
-    .btn-secondary {
-      background: #eef2ff;
-      color: #4338ca;
-    }
-
-    .btn-secondary:hover {
-      background: #e0e7ff;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .status-row {
-      margin-top: 4px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    pre {
+      background: #f1f1f1;
+      padding: 10px;
+      border-radius: 8px;
       font-size: 12px;
-      color: var(--text-muted);
-      min-height: 18px;
+      max-height: 220px;
+      overflow-x: auto;
     }
 
     .spinner {
       width: 16px;
       height: 16px;
-      border: 2px solid #cbd5f5;
-      border-top-color: var(--primary);
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      border: 2px solid #ccc;
+      border-top-color: #1677ff;
+      animation: spin 0.6s linear infinite;
       display: none;
-      flex-shrink: 0;
+      margin: 0 auto;
+      margin-top: 10px;
     }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    .log-box {
-      margin-top: 4px;
-      background: #f3f4f6;
-      border-radius: 8px;
-      padding: 6px 8px;
-      font-size: 11px;
-      color: #374151;
-      max-height: 90px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .log-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #9ca3af;
-      margin-bottom: 2px;
-    }
-
-    .log-content {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    }
-
-    @media (max-width: 400px) {
-      .wrapper {
-        padding: 8px 8px 10px;
-        border-radius: 10px;
-      }
-      h1 {
-        font-size: 16px;
-      }
-      .subtitle {
-        font-size: 11px;
-      }
-      button {
-        font-size: 13px;
-        padding: 9px 10px;
-      }
-    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
   </style>
 </head>
 
 <body>
-  <div class="wrapper">
-    <div class="header">
-      <div class="title-box">
-        <h1>Mintly WalletConnect</h1>
-        <p class="subtitle">Подключите кошелёк и подтвердите транзакцию</p>
-      </div>
-      <div class="pill">Ethereum Sepolia</div>
-    </div>
+  <div class="container">
 
-    <div class="buttons-row">
-      <button id="connectBtn">
-        🔗 Подключить кошелёк
-      </button>
-      <button id="sendBtn" class="hidden">
-        🚀 Отправить транзакцию
-      </button>
-      <button id="explorerBtn" class="btn-secondary hidden">
-        🔍 В сканер
-      </button>
-    </div>
+    <h1>Mintly WalletConnect</h1>
 
-    <div class="status-row">
-      <div id="spinner" class="spinner"></div>
-      <div id="status">Ожидание подключения…</div>
-    </div>
+    <button id="connectBtn">🔗 Подключить кошелёк</button>
+    <button id="sendBtn" style="display:none;">🚀 Отправить транзакцию</button>
 
-    <div class="log-box">
-      <div class="log-label">Статус</div>
-      <div id="log" class="log-content"></div>
-    </div>
+    <div id="status">Ожидание подключения…</div>
+    <div id="spinner" class="spinner"></div>
+
+    <pre id="log"></pre>
   </div>
 
-  <script type="module">
-    // Небольшой shim для библиотек, которые ожидают process.env
-    window.process = { env: { NODE_ENV: "production" } };
+<script type="module">
+  window.process = { env: { NODE_ENV: "production" } };
 
-    import SignClient from "./vendor/walletconnect/wc-sdk.js";
-    import { WalletConnectModal } from "./vendor/walletconnect/walletconnect-modal.js";
+  import SignClient from "./vendor/walletconnect/wc-sdk.js";
+  import { WalletConnectModal } from "./vendor/walletconnect/walletconnect-modal.js";
 
-    const { ethers } = window;
+  const tg = window.Telegram ? window.Telegram.WebApp : null;
+  if (tg) tg.ready();
 
-    // Telegram WebApp
-    const tg = window.Telegram ? window.Telegram.WebApp : null;
-    if (tg) {
-      tg.ready();
-      // Можно чуть подсветить фон в Telegram-теме
-      tg.setBackgroundColor("#f8faff");
-    }
+  const REQUIRED_CHAIN = "eip155:11155111";  // Sepolia
+  const CHAIN_ID = 11155111;
 
-    const REQUIRED_CHAIN = "eip155:11155111"; 
-    const REQUIRED_CHAIN_ID = 11155111;
+  const projectId = "304ab24704c29b3d89ab4001b3eab9aa";  
+  const relayUrl = "wss://relay.walletconnect.com";
 
-    const projectId = "304ab24704c29b3d89ab4001b3eab9aa";
-    const relayUrl = "wss://relay.walletconnect.com";
+  const modal = new WalletConnectModal({ projectId, themeMode: "light" });
 
-    const modal = new WalletConnectModal({
-      projectId,
-      themeMode: "light",
-    });
+  let client = null;
+  let session = null;
 
-    let client = null;
-    let session = null;
-    let lastTxHash = null;
+  const logEl = document.getElementById("log");
+  const statusEl = document.getElementById("status");
+  const connectBtn = document.getElementById("connectBtn");
+  const sendBtn = document.getElementById("sendBtn");
+  const spinner = document.getElementById("spinner");
 
-    const logEl = document.getElementById("log");
-    const statusEl = document.getElementById("status");
-    const spinnerEl = document.getElementById("spinner");
+  const log = msg => { logEl.textContent += msg + "\n"; console.log(msg); };
+  const setStatus = (t, load=false) => {
+    statusEl.textContent = t;
+    spinner.style.display = load ? "block" : "none";
+  };
 
-    const connectBtn = document.getElementById("connectBtn");
-    const sendBtn = document.getElementById("sendBtn");
-    const explorerBtn = document.getElementById("explorerBtn");
+  const getAccount = () => {
+    if (!session) return null;
+    const acc = session.namespaces.eip155.accounts[0];
+    const [_, chain, address] = acc.split(":");
+    return { chain, address };
+  };
 
-    // 🔒 Минимальный безопасный лог
-    const log = (msg) => {
-      console.log(msg);
-
-      const safePrefixes = [
-        "WalletConnect initialized",
-        "Session established",
-        "Sending transaction...",
-        "TX hash:"
-      ];
-
-      if (safePrefixes.some(p => msg.startsWith(p))) {
-        logEl.textContent += msg + "\n";
-      }
-    };
-
-    const setStatus = (text, { loading = false } = {}) => {
-      statusEl.textContent = text;
-      spinnerEl.style.display = loading ? "inline-block" : "none";
-    };
-
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-    const getAccountInfo = () => {
-      if (!session) return null;
-      const entry = session.namespaces.eip155.accounts[0]; // "eip155:11155111:0x..."
-      const [_, chainIdStr, address] = entry.split(":");
-      return { chainIdStr, address };
-    };
-
-    // === 1) Подключение кошелька ===
-    connectBtn.onclick = async () => {
-      try {
-        setStatus("🟡 Инициализация WalletConnect…", { loading: true });
-        log("WalletConnect initialized");
-
-        async function initWC() {
-  for (let i = 0; i < 4; i++) {
+  // ------------------ CONNECT ------------------
+  connectBtn.onclick = async () => {
     try {
-      return await SignClient.init({ projectId, relayUrl });
+      setStatus("Инициализация WalletConnect…", true);
+
+      client = await SignClient.init({ projectId, relayUrl });
+      log("SignClient initialized");
+
+      const { uri, approval } = await client.connect({
+        requiredNamespaces: {
+          eip155: {
+            methods: ["eth_sendTransaction", "personal_sign"],
+            events: ["accountsChanged", "chainChanged"],
+            chains: [REQUIRED_CHAIN],
+          },
+        }
+      });
+
+      if (uri) modal.openModal({ uri });
+      session = await approval();
+      modal.closeModal();
+
+      const acc = getAccount();
+      const short = acc.address.slice(0, 6) + "…" + acc.address.slice(-4);
+
+      setStatus(`Подключено: ${short}`);
+      log("Connected " + acc.address);
+
+      connectBtn.style.display = "none";
+      sendBtn.style.display = "block";
+
     } catch (e) {
-      console.warn("Retry init", i + 1, e.message);
-      await sleep(300);
+      setStatus("Ошибка подключения", false);
+      log("Ошибка: " + e.message);
     }
-  }
-  throw new Error("WalletConnect init failed after retries");
-}
+  };
 
-client = await initWC();
+  // ------------------ SEND TX ------------------
+  sendBtn.onclick = async () => {
+    try {
+      if (!session) throw new Error("Сначала подключите кошелёк");
 
-        const { uri, approval } = await client.connect({
-          requiredNamespaces: {
-            eip155: {
-              methods: ["eth_sendTransaction", "personal_sign"],
-              events: ["accountsChanged", "chainChanged"],
-              chains: [REQUIRED_CHAIN, "eip155:11155111"],
-            },
-          },
-        });
+      const acc = getAccount();
 
-        if (uri) {
-  setTimeout(() => modal.openModal({ uri }), 150);
-}
-
-        session = await approval();
-        modal.closeModal();
-
-        log("Session established");
-
-        const info = getAccountInfo();
-        if (!info) throw new Error("Не удалось получить адрес кошелька");
-
-        const short = info.address.slice(0, 6) + "..." + info.address.slice(-4);
-        setStatus(`✅ Подключено: ${short}`, { loading: false });
-// Уведомляем Telegram-бота о подключении кошелька
-if (tg) {
-  tg.sendData(JSON.stringify({
-    type: "wc_connect",
-    status: "connected",
-    address: info.address
-  }));
-}
-        connectBtn.classList.add("hidden");
-        sendBtn.classList.remove("hidden");
-      } catch (err) {
-        console.error(err);
-        setStatus("⚠️ Ошибка подключения", { loading: false });
-
-        if (tg) {
-          tg.sendData(JSON.stringify({
-            type: "tx_result",
-            status: "error",
-            error: "connect_error: " + err.message
-          }));
-        }
+      if (acc.chain !== String(CHAIN_ID)) {
+        log("Chain mismatch: " + acc.chain);
       }
-    };
 
-    // === 2) Отправка транзакции ===
-    sendBtn.onclick = async () => {
-      try {
-        if (!session) {
-          throw new Error("Сначала подключите кошелёк");
-        }
+      const u = new URL(window.location.href);
+      const to = u.searchParams.get("to");
+      let data = decodeURIComponent(u.searchParams.get("data") || "");
+      const value = u.searchParams.get("value") || "0";
 
-        const info = getAccountInfo();
-        if (!info) throw new Error("Нет активной сессии");
+      const tx = {
+        from: acc.address,
+        to,
+        data,
+        value: "0x" + BigInt(value).toString(16),
+      };
 
-        if (Number(info.chainIdStr) !== REQUIRED_CHAIN_ID) {
-          if (info.chainIdStr === "1") {
-            // Известный баг — иногда приходит 1, но транза всё равно уходит в нужную сеть
-            console.warn("WalletConnect reported chainId=1, продолжаем…");
-          } else {
-            throw new Error(`Кошелёк сообщает chainId=${info.chainIdStr}. Ожидается 11155111 (Ethereum Sepolia).`);
-          }
-        }
+      setStatus("Отправка транзакции…", true);
 
-        const u = new URL(window.location.href);
-        const to = u.searchParams.get("to");
-        let data = u.searchParams.get("data") || "";
-        data = decodeURIComponent(data);
-        const valueStr = u.searchParams.get("value") || "0";
+      const txHash = await client.request({
+        topic: session.topic,
+        chainId: REQUIRED_CHAIN,
+        request: { method: "eth_sendTransaction", params: [tx] }
+      });
 
-        if (!to || !data) {
-          throw new Error("Нет параметров транзакции (to / data)");
-        }
+      log("TX hash: " + txHash);
+      setStatus("Транзакция отправлена!");
 
-        if (!/^0x[a-fA-F0-9]{40}$/.test(to)) {
-          throw new Error("Некорректный адрес получателя");
-        }
-
-        if (!data.startsWith("0x") || data.length % 2 !== 0) {
-          throw new Error("Некорректные данные транзакции");
-        }
-
-        if (!/^\d+$/.test(valueStr)) {
-          throw new Error("value должен быть целым числом");
-        }
-
-        const valueWei = BigInt(valueStr);
-        const valueHex = "0x" + valueWei.toString(16);
-
-        const tx = {
-          from: info.address,
-          to,
-          data,
-          value: valueHex,
-          gasLimit: "0x2dc6c0", // лимит, газ выберет кошелёк
-        };
-
-        setStatus("⏳ Отправка транзакции…", { loading: true });
-        log("Sending transaction...");
-
-        await sleep(600);
-
-        const txHash = await client.request({
-          topic: session.topic,
-          chainId: REQUIRED_CHAIN,
-          request: {
-            method: "eth_sendTransaction",
-            params: [tx],
-          },
-        });
-
-        lastTxHash = txHash;
-        log("TX hash: " + txHash);
-        setStatus("🟢 Транзакция отправлена", { loading: false });
-
-        sendBtn.classList.add("hidden");
-        explorerBtn.classList.remove("hidden");
-
-        // Отдаём результат обратно в Telegram-бот
-        if (tg) {
-          tg.sendData(JSON.stringify({
-            type: "tx_result",
-            status: "success",
-            txHash: txHash
-          }));
-          // Можно сразу закрыть WebApp
-          tg.close();
-        }
-      } catch (err) {
-        console.error(err);
-        setStatus("⚠️ " + err.message, { loading: false });
-
-        if (tg) {
-          tg.sendData(JSON.stringify({
-            type: "tx_result",
-            status: "error",
-            error: "tx_error: " + err.message
-          }));
-          tg.close();
-        }
+      if (tg) {
+        tg.sendData(JSON.stringify({
+          type: "tx_result",
+          status: "success",
+          txHash
+        }));
       }
-    };
 
-    // === 3) Открыть в сканере ===
-    explorerBtn.onclick = () => {
-      if (!lastTxHash) return;
-      window.open(`https://sepolia.etherscan.io/tx/${lastTxHash}`, "_blank");
-    };
-  </script>
+    } catch (e) {
+      setStatus("Ошибка: " + e.message);
+      log("TX ERR: " + e.message);
+
+      if (tg) {
+        tg.sendData(JSON.stringify({
+          type: "tx_result",
+          status: "error",
+          error: e.message
+        }));
+      }
+    }
+  };
+</script>
+
 </body>
 </html>
