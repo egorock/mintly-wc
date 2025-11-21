@@ -128,11 +128,13 @@
 
   </div>
 
+<script src="./vendor/walletconnect/wc-polyfill.js"></script>
+
 <script type="module">
   window.process = { env: { NODE_ENV: "production" } };
 
-  import SignClient from "./vendor/walletconnect/wc-sdk.js";
-  import { WalletConnectModal } from "./vendor/walletconnect/walletconnect-modal.js";
+  import SignClient from "./vendor/wc-sdk.js";
+  import { WalletConnectModal } from "./vendor/walletconnect-modal.js";
 
   const tg = window.Telegram ? window.Telegram.WebApp : null;
   if (tg) tg.ready();
