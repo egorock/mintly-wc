@@ -1,6 +1,5 @@
 <!doctype html>
 <html lang="en">
-
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -9,10 +8,10 @@
   <!-- Telegram -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <!-- ethers (optional for value formatting etc.) -->
+  <!-- ethers -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 
-  <!-- WalletConnect UMD builds (⚡ the only option that works inside Telegram Mini Apps) -->
+  <!-- WalletConnect (UMD builds — works inside Telegram Mini Apps) -->
   <script src="https://unpkg.com/@walletconnect/sign-client@2.11.2/dist/index.umd.js"></script>
   <script src="https://unpkg.com/@walletconnect/modal@2.7.2/dist/index.umd.js"></script>
 
@@ -35,8 +34,8 @@
     h1 {
       font-size: 22px;
       font-weight: 600;
-      margin-bottom: 14px;
       text-align: center;
+      margin-bottom: 14px;
     }
 
     button {
@@ -52,9 +51,9 @@
 
     #status {
       margin-top: 12px;
-      min-height: 22px;
       text-align: center;
       color: #444;
+      min-height: 20px;
     }
 
     #successScreen {
@@ -74,7 +73,6 @@
       font-size: 12px;
       max-height: 200px;
       overflow-y: auto;
-      margin-top: 10px;
     }
   </style>
 </head>
@@ -98,130 +96,125 @@
     <pre id="log"></pre>
   </div>
 
-  <script>
-    const tg = window.Telegram?.WebApp;
-    if (tg) tg.ready();
+<script>
+  const tg = window.Telegram?.WebApp;
+  if (tg) tg.ready();
 
-    const REQUIRED_CHAIN = "eip155:11155111"; // Sepolia
-    const projectId = "304ab24704c29b3d89ab4001b3eab9aa";
+  const REQUIRED_CHAIN = "eip155:11155111";
+  const projectId = "304ab24704c29b3d89ab4001b3eab9aa";
 
-    const SignClient = window.WalletConnect.SignClient;
-    const WalletConnectModal = window.WalletConnectModal;
+  const SignClient = window.WalletConnect.SignClient;
+  const WalletConnectModal = window.WalletConnectModal;
 
-    const modal = new WalletConnectModal({
-      projectId,
-      themeMode: "light"
-    });
+  const modal = new WalletConnectModal({
+    projectId,
+    themeMode: "light"
+  });
 
-    let client = null;
-    let session = null;
+  let client = null;
+  let session = null;
 
-    const logEl = document.getElementById("log");
-    const statusEl = document.getElementById("status");
-    const connectBtn = document.getElementById("connectBtn");
-    const sendBtn = document.getElementById("sendBtn");
-    const successScreen = document.getElementById("successScreen");
-    const txHashText = document.getElementById("txHashText");
-    const returnBtn = document.getElementById("returnBtn");
+  const logEl = document.getElementById("log");
+  const statusEl = document.getElementById("status");
+  const connectBtn = document.getElementById("connectBtn");
+  const sendBtn = document.getElementById("sendBtn");
+  const successScreen = document.getElementById("successScreen");
+  const txHashText = document.getElementById("txHashText");
+  const returnBtn = document.getElementById("returnBtn");
 
-    const log = (msg) => (logEl.textContent += msg + "\n");
-    const status = (msg) => (statusEl.textContent = msg);
+  const log = (msg) => (logEl.textContent += msg + "\n");
+  const status = (msg) => (statusEl.textContent = msg);
 
-    const getAccount = () => {
-      const entry = session.namespaces.eip155.accounts[0];
-      return entry.split(":")[2];
-    };
+  const getAddress = () => {
+    const entry = session.namespaces.eip155.accounts[0];
+    return entry.split(":")[2];
+  };
 
-    // CONNECT WALLET
-    connectBtn.onclick = async () => {
-      try {
-        status("Initializing WalletConnect…");
-        log("Init client…");
+  // CONNECT
+  connectBtn.onclick = async () => {
+    try {
+      status("Initializing WalletConnect…");
+      log("Init client…");
 
-        client = await SignClient.init({ projectId });
+      client = await SignClient.init({ projectId });
 
-        const { uri, approval } = await client.connect({
-          requiredNamespaces: {
-            eip155: {
-              chains: [REQUIRED_CHAIN],
-              methods: ["eth_sendTransaction"],
-            }
+      const { uri, approval } = await client.connect({
+        requiredNamespaces: {
+          eip155: {
+            chains: [REQUIRED_CHAIN],
+            methods: ["eth_sendTransaction"],
           }
-        });
-
-        if (uri) modal.openModal({ uri });
-
-        session = await approval();
-        modal.closeModal();
-
-        const address = getAccount();
-        status("Connected: " + address.slice(0, 6) + "…" + address.slice(-4));
-
-        connectBtn.style.display = "none";
-        sendBtn.style.display = "block";
-
-        log("Connected: " + address);
-
-      } catch (err) {
-        status("Connection error");
-        log("Error: " + err.message);
-      }
-    };
-
-    // SEND TRANSACTION
-    sendBtn.onclick = async () => {
-      try {
-        const u = new URL(window.location.href);
-        const to = u.searchParams.get("to");
-        const data = decodeURIComponent(u.searchParams.get("data") || "0x");
-        const value = u.searchParams.get("value") || "0";
-
-        const tx = {
-          from: getAccount(),
-          to,
-          data,
-          value: "0x" + BigInt(value).toString(16)
-        };
-
-        status("Sending transaction…");
-        log("Sending TX…");
-
-        const txHash = await client.request({
-          topic: session.topic,
-          chainId: REQUIRED_CHAIN,
-          request: {
-            method: "eth_sendTransaction",
-            params: [tx],
-          },
-        });
-
-        log("TX HASH: " + txHash);
-        status("Transaction sent!");
-
-        // Show success UI
-        txHashText.innerHTML = `<b>${txHash}</b>`;
-        successScreen.style.display = "block";
-
-        // Send to bot
-        if (tg) {
-          tg.sendData(JSON.stringify({
-            type: "tx_result",
-            status: "success",
-            txHash
-          }));
         }
+      });
 
-      } catch (err) {
-        status("TX error");
-        log("Error: " + err.message);
+      if (uri) modal.openModal({ uri });
+
+      session = await approval();
+      modal.closeModal();
+
+      const addr = getAddress();
+      status("Connected: " + addr.slice(0, 6) + "…" + addr.slice(-4));
+      connectBtn.style.display = "none";
+      sendBtn.style.display = "block";
+
+      log("Connected: " + addr);
+
+    } catch (err) {
+      status("Connection error");
+      log("Error: " + err.message);
+    }
+  };
+
+  // SEND TRANSACTION
+  sendBtn.onclick = async () => {
+    try {
+      const u = new URL(window.location.href);
+      const to = u.searchParams.get("to");
+      const data = decodeURIComponent(u.searchParams.get("data") || "0x");
+      const value = u.searchParams.get("value") || "0";
+
+      const tx = {
+        from: getAddress(),
+        to,
+        data,
+        value: "0x" + BigInt(value).toString(16)
+      };
+
+      status("Sending transaction…");
+
+      const txHash = await client.request({
+        topic: session.topic,
+        chainId: REQUIRED_CHAIN,
+        request: {
+          method: "eth_sendTransaction",
+          params: [tx],
+        },
+      });
+
+      status("Transaction sent!");
+      txHashText.innerHTML = txHash;
+      successScreen.style.display = "block";
+
+      log("TX HASH: " + txHash);
+
+      if (tg) {
+        tg.sendData(JSON.stringify({
+          type: "tx_result",
+          status: "success",
+          txHash
+        }));
       }
-    };
 
-    returnBtn.onclick = () => {
-      if (tg) tg.close(); // close Mini App
-    };
-  </script>
+    } catch (err) {
+      status("TX error");
+      log("Error: " + err.message);
+    }
+  };
+
+  returnBtn.onclick = () => {
+    if (tg) tg.close();
+  };
+</script>
 
 </body>
-
 </html>
