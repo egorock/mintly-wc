@@ -27,21 +27,20 @@
       display: flex;
       flex-direction: column;
       height: 100vh;
-      padding: 12px;
-      gap: 10px;
+      padding: 14px;
       box-sizing: border-box;
     }
 
     h1 {
       font-size: 20px;
+      margin-bottom: 14px;
       text-align: center;
-      margin: 0;
-      padding-top: 6px;
     }
 
     button {
       width: 100%;
       padding: 14px;
+      margin-bottom: 12px;
       border: none;
       border-radius: 10px;
       color: #fff;
@@ -51,6 +50,7 @@
     }
 
     #status {
+      margin-bottom: 10px;
       font-size: 14px;
       text-align: center;
       color: #333;
@@ -66,40 +66,43 @@
       border: 1px solid #ddd;
     }
 
+    .hidden {
+      display: none !important;
+    }
+
     /* SUCCESS SCREEN */
-    #success-screen {
+    #successScreen {
       display: none;
-      flex-direction: column;
       height: 100vh;
-      padding: 20px;
+      padding: 26px;
       box-sizing: border-box;
       text-align: center;
-      justify-content: center;
-      align-items: center;
-      gap: 18px;
     }
 
-    #success-screen h2 {
-      font-size: 24px;
-      margin: 0;
+    #successScreen h2 {
+      margin-top: 20px;
+      font-size: 22px;
     }
 
-    #success-screen .hash {
-      font-size: 13px;
-      color: #666;
+    #success-hash {
+      margin-top: 14px;
+      font-size: 14px;
       word-break: break-all;
-      padding: 6px 10px;
-      background: #fff;
-      border: 1px solid #ddd;
+      color: #2477f4;
+    }
+
+    #returnBtn {
+      width: 100%;
+      margin-top: 26px;
+      padding: 14px;
+      border: none;
       border-radius: 10px;
-      max-width: 95%;
+      font-size: 16px;
+      background: #2477f4;
+      color: #ffffff;
     }
 
-    .return-btn {
-      background: #2f8c2f !important;
-      color: #fff;
-    }
-
+    /* WalletConnect modal over everything */
     .wcm-modal {
       z-index: 999999 !important;
     }
@@ -108,7 +111,7 @@
 
 <body>
 
-  <!-- MAIN SCREEN -->
+  <!-- MAIN APP SCREEN -->
   <div id="app">
     <h1>Mintly WalletConnect</h1>
 
@@ -120,22 +123,19 @@
   </div>
 
   <!-- SUCCESS SCREEN -->
-  <div id="success-screen">
-    <h2>🎉 Transaction sent!</h2>
-    <div class="hash" id="hashBox">Hash...</div>
+  <div id="successScreen">
+    <h2>🎉 Transaction Sent!</h2>
+    <div>Your transaction hash:</div>
+    <div id="success-hash"></div>
 
-    <button onclick="window.open(`https://sepolia.etherscan.io/tx/${window.__lastTx}`, '_blank')">
-      🔍 View on Etherscan
-    </button>
-
-    <button class="return-btn" id="returnBotBtn">⬅️ Return to bot</button>
+    <button id="returnBtn">⬅ Return to bot</button>
   </div>
 
 <script type="module">
   import SignClient from "./vendor/walletconnect/wc-sdk.js";
   import { WalletConnectModal } from "./vendor/walletconnect/walletconnect-modal.js";
 
-  const REQUIRED_CHAIN = "eip155:11155111"; // Ethereum Sepolia
+  const REQUIRED_CHAIN = "eip155:11155111"; 
   const REQUIRED_CHAIN_ID = 11155111;
 
   const modal = new WalletConnectModal({
@@ -148,28 +148,19 @@
 
   let client = null;
   let session = null;
-  window.__lastTx = null;
+  let lastTxHash = null;
 
   const app = document.getElementById("app");
-  const successScreen = document.getElementById("success-screen");
-
+  const successScreen = document.getElementById("successScreen");
   const connectBtn = document.getElementById("connectBtn");
   const sendBtn = document.getElementById("sendBtn");
   const statusEl = document.getElementById("status");
   const logEl = document.getElementById("log");
-  const hashBox = document.getElementById("hashBox");
-  const returnBotBtn = document.getElementById("returnBotBtn");
+  const returnBtn = document.getElementById("returnBtn");
+  const hashEl = document.getElementById("success-hash");
 
-  const log = msg => (logEl.textContent += msg + "\n");
-  const setStatus = msg => (statusEl.textContent = msg);
-
-  const switchToSuccess = txHash => {
-    window.__lastTx = txHash;
-    hashBox.textContent = txHash;
-
-    app.style.display = "none";
-    successScreen.style.display = "flex";
-  };
+  const log = msg => logEl.textContent += msg + "\n";
+  const setStatus = msg => statusEl.textContent = msg;
 
   const getAccountInfo = () => {
     if (!session) return null;
@@ -178,11 +169,14 @@
     return { chainIdStr, address };
   };
 
-  // ========= CONNECT =========
+  // ================= CONNECT ==================
   connectBtn.onclick = async () => {
     try {
       setStatus("Initializing WalletConnect…");
       log("Init SignClient…");
+
+      app.style.opacity = "0.25";
+      app.style.pointerEvents = "none";
 
       client = await SignClient.init({
         projectId: "304ab24704c29b3d89ab4001b3eab9aa",
@@ -193,7 +187,7 @@
         requiredNamespaces: {
           eip155: {
             methods: ["eth_sendTransaction"],
-            chains: [REQUIRED_CHAIN]
+            chains: [REQUIRED_CHAIN],
           }
         }
       });
@@ -202,6 +196,9 @@
 
       session = await approval();
       modal.closeModal();
+
+      app.style.opacity = "1";
+      app.style.pointerEvents = "auto";
 
       const info = getAccountInfo();
       const short = info.address.slice(0, 6) + "…" + info.address.slice(-4);
@@ -221,33 +218,27 @@
           error: "connect_error: " + err.message
         }));
       }
+
+      app.style.opacity = "1";
+      app.style.pointerEvents = "auto";
     }
   };
 
-  // ========= SEND TX =========
+  // ================= SEND TX ==================
   sendBtn.onclick = async () => {
     try {
       const info = getAccountInfo();
-      if (!info) throw new Error("Wallet not connected");
+      if (!info) throw new Error("No active session");
 
       const u = new URL(window.location.href);
       const to = u.searchParams.get("to");
       let data = decodeURIComponent(u.searchParams.get("data") || "");
-      const valueStr = u.searchParams.get("value") || "0";
-
-      const valueWei = BigInt(valueStr);
+      const valueWei = BigInt(u.searchParams.get("value") || "0");
       const valueHex = "0x" + valueWei.toString(16);
 
-      const tx = {
-        from: info.address,
-        to,
-        data,
-        value: valueHex
-      };
+      const tx = { from: info.address, to, data, value: valueHex };
 
       setStatus("Sending transaction…");
-      log("Sending TX…");
-
       const txHash = await client.request({
         topic: session.topic,
         chainId: REQUIRED_CHAIN,
@@ -257,11 +248,15 @@
         },
       });
 
-      log("TX hash: " + txHash);
-      setStatus("Transaction sent!");
+      lastTxHash = txHash;
+      log("TX: " + txHash);
 
-      switchToSuccess(txHash);
+      // SHOW SUCCESS SCREEN
+      app.style.display = "none";
+      successScreen.style.display = "block";
+      hashEl.textContent = txHash;
 
+      // Send result to bot
       if (tg) {
         tg.sendData(JSON.stringify({
           type: "tx_result",
@@ -271,7 +266,6 @@
       }
 
     } catch (err) {
-      console.error(err);
       setStatus("Error: " + err.message);
 
       if (tg) {
@@ -284,8 +278,8 @@
     }
   };
 
-  // ========= RETURN TO BOT =========
-  returnBotBtn.onclick = () => {
+  // RETURN BUTTON
+  returnBtn.onclick = () => {
     if (tg) tg.close();
   };
 </script>
