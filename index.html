@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -23,12 +23,13 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
+    /* Full screen layout */
     #app {
       display: flex;
       flex-direction: column;
       height: 100vh;
-      padding: 14px;
       box-sizing: border-box;
+      padding: 14px;
     }
 
     h1 {
@@ -66,43 +67,7 @@
       border: 1px solid #ddd;
     }
 
-    .hidden {
-      display: none !important;
-    }
-
-    /* SUCCESS SCREEN */
-    #successScreen {
-      display: none;
-      height: 100vh;
-      padding: 26px;
-      box-sizing: border-box;
-      text-align: center;
-    }
-
-    #successScreen h2 {
-      margin-top: 20px;
-      font-size: 22px;
-    }
-
-    #success-hash {
-      margin-top: 14px;
-      font-size: 14px;
-      word-break: break-all;
-      color: #2477f4;
-    }
-
-    #returnBtn {
-      width: 100%;
-      margin-top: 26px;
-      padding: 14px;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      background: #2477f4;
-      color: #ffffff;
-    }
-
-    /* WalletConnect modal over everything */
+    /* WalletConnect modal above everything */
     .wcm-modal {
       z-index: 999999 !important;
     }
@@ -110,32 +75,21 @@
 </head>
 
 <body>
-
-  <!-- MAIN APP SCREEN -->
   <div id="app">
     <h1>Mintly WalletConnect</h1>
 
-    <button id="connectBtn">🔗 Connect wallet</button>
-    <button id="sendBtn" class="hidden">🚀 Send transaction</button>
+    <button id="connectBtn">🔗 Подключить кошелёк</button>
+    <button id="sendBtn" class="hidden">🚀 Отправить транзакцию</button>
 
-    <div id="status">Waiting for connection…</div>
+    <div id="status">Ожидание подключения…</div>
     <pre id="log"></pre>
-  </div>
-
-  <!-- SUCCESS SCREEN -->
-  <div id="successScreen">
-    <h2>🎉 Transaction Sent!</h2>
-    <div>Your transaction hash:</div>
-    <div id="success-hash"></div>
-
-    <button id="returnBtn">⬅ Return to bot</button>
   </div>
 
 <script type="module">
   import SignClient from "./vendor/walletconnect/wc-sdk.js";
   import { WalletConnectModal } from "./vendor/walletconnect/walletconnect-modal.js";
 
-  const REQUIRED_CHAIN = "eip155:11155111"; 
+  const REQUIRED_CHAIN = "eip155:11155111"; // Sepolia
   const REQUIRED_CHAIN_ID = 11155111;
 
   const modal = new WalletConnectModal({
@@ -151,16 +105,18 @@
   let lastTxHash = null;
 
   const app = document.getElementById("app");
-  const successScreen = document.getElementById("successScreen");
   const connectBtn = document.getElementById("connectBtn");
   const sendBtn = document.getElementById("sendBtn");
   const statusEl = document.getElementById("status");
   const logEl = document.getElementById("log");
-  const returnBtn = document.getElementById("returnBtn");
-  const hashEl = document.getElementById("success-hash");
 
-  const log = msg => logEl.textContent += msg + "\n";
-  const setStatus = msg => statusEl.textContent = msg;
+  const log = (msg) => {
+    logEl.textContent += msg + "\n";
+  };
+
+  const setStatus = (msg) => {
+    statusEl.textContent = msg;
+  };
 
   const getAccountInfo = () => {
     if (!session) return null;
@@ -169,13 +125,13 @@
     return { chainIdStr, address };
   };
 
-  // ================= CONNECT ==================
+  // ============ CONNECT ================
   connectBtn.onclick = async () => {
     try {
-      setStatus("Initializing WalletConnect…");
+      setStatus("Инициализация WalletConnect…");
       log("Init SignClient…");
 
-      app.style.opacity = "0.25";
+      app.style.opacity = "0.2";
       app.style.pointerEvents = "none";
 
       client = await SignClient.init({
@@ -187,7 +143,7 @@
         requiredNamespaces: {
           eip155: {
             methods: ["eth_sendTransaction"],
-            chains: [REQUIRED_CHAIN],
+            chains: [REQUIRED_CHAIN]
           }
         }
       });
@@ -203,13 +159,13 @@
       const info = getAccountInfo();
       const short = info.address.slice(0, 6) + "…" + info.address.slice(-4);
 
-      setStatus(`Connected: ${short}`);
+      setStatus(`Подключено: ${short}`);
       connectBtn.classList.add("hidden");
       sendBtn.classList.remove("hidden");
 
     } catch (err) {
       console.error(err);
-      setStatus("Connection error");
+      setStatus("Ошибка подключения");
 
       if (tg) {
         tg.sendData(JSON.stringify({
@@ -224,21 +180,30 @@
     }
   };
 
-  // ================= SEND TX ==================
+  // ============ SEND TX ================
   sendBtn.onclick = async () => {
     try {
       const info = getAccountInfo();
-      if (!info) throw new Error("No active session");
+      if (!info) throw new Error("Нет активной сессии");
 
       const u = new URL(window.location.href);
       const to = u.searchParams.get("to");
-      let data = decodeURIComponent(u.searchParams.get("data") || "");
-      const valueWei = BigInt(u.searchParams.get("value") || "0");
+      let data = u.searchParams.get("data") || "";
+      data = decodeURIComponent(data);
+      const valueStr = u.searchParams.get("value") || "0";
+
+      const valueWei = BigInt(valueStr);
       const valueHex = "0x" + valueWei.toString(16);
 
-      const tx = { from: info.address, to, data, value: valueHex };
+      const tx = {
+        from: info.address,
+        to,
+        data,
+        value: valueHex
+      };
 
-      setStatus("Sending transaction…");
+      setStatus("Отправка транзакции…");
+
       const txHash = await client.request({
         topic: session.topic,
         chainId: REQUIRED_CHAIN,
@@ -250,23 +215,18 @@
 
       lastTxHash = txHash;
       log("TX: " + txHash);
+      setStatus("Транзакция отправлена!");
 
-      // SHOW SUCCESS SCREEN
-      app.style.display = "none";
-      successScreen.style.display = "block";
-      hashEl.textContent = txHash;
-
-      // Send result to bot
       if (tg) {
         tg.sendData(JSON.stringify({
           type: "tx_result",
           status: "success",
-          txHash
+          txHash: txHash
         }));
       }
 
     } catch (err) {
-      setStatus("Error: " + err.message);
+      setStatus("Ошибка: " + err.message);
 
       if (tg) {
         tg.sendData(JSON.stringify({
@@ -276,11 +236,6 @@
         }));
       }
     }
-  };
-
-  // RETURN BUTTON
-  returnBtn.onclick = () => {
-    if (tg) tg.close();
   };
 </script>
 
