@@ -250,7 +250,7 @@
       tg.setBackgroundColor("#f8faff");
     }
 
-    const REQUIRED_CHAIN = "eip155:1115511"; 
+    const REQUIRED_CHAIN = "eip155:11155111"; 
     const REQUIRED_CHAIN_ID = 11155111;
 
     const projectId = "304ab24704c29b3d89ab4001b3eab9aa";
@@ -316,7 +316,7 @@
             eip155: {
               methods: ["eth_sendTransaction", "personal_sign"],
               events: ["accountsChanged", "chainChanged"],
-              chains: [REQUIRED_CHAIN],
+              chains: [REQUIRED_CHAIN, "eip155:11155111"],
             },
           },
         });
@@ -362,7 +362,7 @@
         const info = getAccountInfo();
         if (!info) throw new Error("Нет активной сессии");
 
-        if (info.chainIdStr !== String(REQUIRED_CHAIN_ID)) {
+        if (Number(info.chainIdStr) !== REQUIRED_CHAIN_ID) {
           if (info.chainIdStr === "1") {
             // Известный баг — иногда приходит 1, но транза всё равно уходит в нужную сеть
             console.warn("WalletConnect reported chainId=1, продолжаем…");
