@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,12 +8,12 @@
   <!-- Telegram WebApp -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <!-- ethers.js -->
+  <!-- ethers -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 
-  <!-- WalletConnect -->
-  <script type="module" src="./vendor/walletconnect/walletconnect-modal.js"></script>
-  <script type="module" src="./vendor/walletconnect/wc-sdk.js"></script>
+  <!-- WalletConnect SDK v2 (recommended stable build) -->
+  <script src="https://unpkg.com/@walletconnect/modal@2.7.2/dist/index.umd.js"></script>
+  <script src="https://unpkg.com/@walletconnect/sign-client@2.11.2/dist/index.umd.js"></script>
 
   <style>
     body {
@@ -22,22 +22,18 @@
       background: #f4f5f7;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-
-    /* Full screen layout */
     #app {
       display: flex;
       flex-direction: column;
       height: 100vh;
-      box-sizing: border-box;
       padding: 14px;
+      box-sizing: border-box;
     }
-
     h1 {
       font-size: 20px;
-      margin-bottom: 14px;
       text-align: center;
+      margin-bottom: 16px;
     }
-
     button {
       width: 100%;
       padding: 14px;
@@ -45,57 +41,43 @@
       border: none;
       border-radius: 10px;
       color: #fff;
-      font-size: 16px;
       background: #2477f4;
-      cursor: pointer;
+      font-size: 16px;
     }
-
     #status {
-      margin-bottom: 10px;
-      font-size: 14px;
       text-align: center;
+      margin-bottom: 10px;
       color: #333;
     }
-
-    #log {
+    pre {
       flex: 1;
-      overflow-y: auto;
-      background: #ffffff;
+      background: #fff;
       border-radius: 10px;
       padding: 10px;
-      font-size: 12px;
       border: 1px solid #ddd;
-    }
-
-    /* WalletConnect modal above everything */
-    .wcm-modal {
-      z-index: 999999 !important;
+      font-size: 12px;
+      overflow-y: auto;
     }
   </style>
 </head>
 
 <body>
-  <div id="app">
-    <h1>Mintly WalletConnect</h1>
+<div id="app">
 
-    <button id="connectBtn">🔗 Подключить кошелёк</button>
-    <button id="sendBtn" class="hidden">🚀 Отправить транзакцию</button>
+  <h1>Mintly WalletConnect</h1>
 
-    <div id="status">Ожидание подключения…</div>
-    <pre id="log"></pre>
-  </div>
+  <button id="connectBtn">🔗 Connect wallet</button>
+  <button id="sendBtn" class="hidden">🚀 Send transaction</button>
 
-<script type="module">
-  import SignClient from "./vendor/walletconnect/wc-sdk.js";
-  import { WalletConnectModal } from "./vendor/walletconnect/walletconnect-modal.js";
+  <div id="status">Waiting for connection...</div>
+  <pre id="log"></pre>
 
-  const REQUIRED_CHAIN = "eip155:11155111"; // Sepolia
-  const REQUIRED_CHAIN_ID = 11155111;
+</div>
 
-  const modal = new WalletConnectModal({
-    projectId: "304ab24704c29b3d89ab4001b3eab9aa",
-    themeMode: "light"
-  });
+<script>
+  const REQUIRED_CHAIN = "eip155:11155111";    // Sepolia
+  const CHAIN_ID_NUM = 11155111;
+  const PROJECT_ID = "304ab24704c29b3d89ab4001b3eab9aa";
 
   const tg = window.Telegram?.WebApp;
   if (tg) tg.ready();
@@ -104,135 +86,108 @@
   let session = null;
   let lastTxHash = null;
 
-  const app = document.getElementById("app");
+  const logEl = document.getElementById("log");
+  const statusEl = document.getElementById("status");
   const connectBtn = document.getElementById("connectBtn");
   const sendBtn = document.getElementById("sendBtn");
-  const statusEl = document.getElementById("status");
-  const logEl = document.getElementById("log");
 
-  const log = (msg) => {
-    logEl.textContent += msg + "\n";
+  const log = (msg) => (logEl.textContent += msg + "\n");
+  const status = (msg) => (statusEl.textContent = msg);
+
+  const getAddress = () => {
+    const acc = session.namespaces.eip155.accounts[0];
+    return acc.split(":")[2];
   };
 
-  const setStatus = (msg) => {
-    statusEl.textContent = msg;
-  };
-
-  const getAccountInfo = () => {
-    if (!session) return null;
-    const entry = session.namespaces.eip155.accounts[0];
-    const [_, chainIdStr, address] = entry.split(":");
-    return { chainIdStr, address };
-  };
-
-  // ============ CONNECT ================
   connectBtn.onclick = async () => {
     try {
-      setStatus("Инициализация WalletConnect…");
-      log("Init SignClient…");
+      status("Initializing WalletConnect...");
+      log("Init SignClient...");
 
-      app.style.opacity = "0.2";
-      app.style.pointerEvents = "none";
-
-      client = await SignClient.init({
-        projectId: "304ab24704c29b3d89ab4001b3eab9aa",
+      client = await SignClient.SignClient.init({
+        projectId: PROJECT_ID,
         relayUrl: "wss://relay.walletconnect.com"
       });
 
       const { uri, approval } = await client.connect({
         requiredNamespaces: {
           eip155: {
+            chains: [REQUIRED_CHAIN],
             methods: ["eth_sendTransaction"],
-            chains: [REQUIRED_CHAIN]
+            events: []
           }
         }
       });
 
-      if (uri) modal.openModal({ uri });
-
-      session = await approval();
-      modal.closeModal();
-
-      app.style.opacity = "1";
-      app.style.pointerEvents = "auto";
-
-      const info = getAccountInfo();
-      const short = info.address.slice(0, 6) + "…" + info.address.slice(-4);
-
-      setStatus(`Подключено: ${short}`);
-      connectBtn.classList.add("hidden");
-      sendBtn.classList.remove("hidden");
-
-    } catch (err) {
-      console.error(err);
-      setStatus("Ошибка подключения");
-
-      if (tg) {
-        tg.sendData(JSON.stringify({
-          type: "tx_result",
-          status: "error",
-          error: "connect_error: " + err.message
-        }));
+      if (uri) {
+        WalletConnectModal.openModal({ uri, projectId: PROJECT_ID });
       }
 
-      app.style.opacity = "1";
-      app.style.pointerEvents = "auto";
+      session = await approval();
+      WalletConnectModal.closeModal();
+
+      const address = getAddress();
+      const short = address.slice(0, 6) + "..." + address.slice(-4);
+
+      status("Connected: " + short);
+      sendBtn.classList.remove("hidden");
+      connectBtn.classList.add("hidden");
+
+      log("Connected: " + address);
+
+    } catch (err) {
+      status("Connection error");
+      log("Error: " + err.message);
     }
   };
 
-  // ============ SEND TX ================
   sendBtn.onclick = async () => {
     try {
-      const info = getAccountInfo();
-      if (!info) throw new Error("Нет активной сессии");
-
-      const u = new URL(window.location.href);
-      const to = u.searchParams.get("to");
-      let data = u.searchParams.get("data") || "";
-      data = decodeURIComponent(data);
-      const valueStr = u.searchParams.get("value") || "0";
-
-      const valueWei = BigInt(valueStr);
-      const valueHex = "0x" + valueWei.toString(16);
+      const url = new URL(window.location.href);
+      const to = url.searchParams.get("to");
+      const data = decodeURIComponent(url.searchParams.get("data") || "0x");
+      const valueStr = url.searchParams.get("value") || "0";
 
       const tx = {
-        from: info.address,
+        from: getAddress(),
         to,
         data,
-        value: valueHex
+        value: "0x" + BigInt(valueStr).toString(16)
       };
 
-      setStatus("Отправка транзакции…");
+      status("Sending transaction...");
+      log("Submitting TX...");
 
       const txHash = await client.request({
         topic: session.topic,
         chainId: REQUIRED_CHAIN,
         request: {
           method: "eth_sendTransaction",
-          params: [tx],
-        },
+          params: [tx]
+        }
       });
 
       lastTxHash = txHash;
-      log("TX: " + txHash);
-      setStatus("Транзакция отправлена!");
+      status("Transaction sent!");
+      log("TX hash: " + txHash);
 
       if (tg) {
         tg.sendData(JSON.stringify({
           type: "tx_result",
           status: "success",
-          txHash: txHash
+          txHash
         }));
       }
 
     } catch (err) {
-      setStatus("Ошибка: " + err.message);
+      status("TX error");
+      log("TX error: " + err.message);
 
       if (tg) {
         tg.sendData(JSON.stringify({
           type: "tx_result",
           status: "error",
-          error: "tx_error: " + err.message
+          error: err.message
         }));
       }
     }
