@@ -309,7 +309,19 @@
         setStatus("🟡 Инициализация WalletConnect…", { loading: true });
         log("WalletConnect initialized");
 
-        client = await SignClient.init({ projectId, relayUrl });
+        async function initWC() {
+  for (let i = 0; i < 4; i++) {
+    try {
+      return await SignClient.init({ projectId, relayUrl });
+    } catch (e) {
+      console.warn("Retry init", i + 1, e.message);
+      await sleep(300);
+    }
+  }
+  throw new Error("WalletConnect init failed after retries");
+}
+
+client = await initWC();
 
         const { uri, approval } = await client.connect({
           requiredNamespaces: {
@@ -322,8 +334,8 @@
         });
 
         if (uri) {
-          modal.openModal({ uri });
-        }
+  setTimeout(() => modal.openModal({ uri }), 150);
+}
 
         session = await approval();
         modal.closeModal();
@@ -335,7 +347,14 @@
 
         const short = info.address.slice(0, 6) + "..." + info.address.slice(-4);
         setStatus(`✅ Подключено: ${short}`, { loading: false });
-
+// Уведомляем Telegram-бота о подключении кошелька
+if (tg) {
+  tg.sendData(JSON.stringify({
+    type: "wc_connect",
+    status: "connected",
+    address: info.address
+  }));
+}
         connectBtn.classList.add("hidden");
         sendBtn.classList.remove("hidden");
       } catch (err) {
